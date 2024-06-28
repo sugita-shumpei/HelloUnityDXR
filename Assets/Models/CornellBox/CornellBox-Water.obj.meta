@@ -3,7 +3,52 @@ guid: c4d6d06245682fa4da5cc922835cd62c
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: backWall
+    second: {fileID: 2100000, guid: 2c2d5bb8b6925784abc2aa825cb70564, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: ceiling
+    second: {fileID: 2100000, guid: 265a2edf12140d84a9f260c5f094a09a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: floor
+    second: {fileID: 2100000, guid: 2bebbad63f0bbfc4c9f8e7cf25843ecf, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: leftSphere
+    second: {fileID: 2100000, guid: d5ff92e124808954998e02f93c2c2612, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: leftWall
+    second: {fileID: 2100000, guid: 9608942b2c355a845accc2f375a9bc76, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: light
+    second: {fileID: 2100000, guid: 16bf66af9df7fe94289b69113caeb48f, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rightSphere
+    second: {fileID: 2100000, guid: 3731ee0142f8784419b1142273388273, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rightWall
+    second: {fileID: 2100000, guid: 57391143ea589ad49b9957cf387fd83d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: water
+    second: {fileID: 2100000, guid: 3329c5c7838ed994c9eafafd8d414584, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

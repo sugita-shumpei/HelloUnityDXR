@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
-
+using UnityEngine.Rendering.Denoising;
+using UnityEngine.Assertions;
 
 [RequireComponent(typeof(Camera))]
 public class SimplePathTracer : MonoBehaviour
@@ -24,19 +26,22 @@ public class SimplePathTracer : MonoBehaviour
     private int                             dispatchSamples        = 1;
     private int                             _dispatchSamples       = 1;
     [SerializeField]
-    private BackgroundMode backgroundMode   = BackgroundMode.Skybox;
-    private BackgroundMode _prevBackgroundMode  = BackgroundMode.Skybox;
+    private BackgroundMode                  backgroundMode         = BackgroundMode.Skybox;
+    private BackgroundMode                  _prevBackgroundMode    = BackgroundMode.Skybox;
     [SerializeField]
-    private Color          backgroundColor  = Color.black;
-    private Color          _backgroundColor = Color.black;
+    private Color                           backgroundColor        = Color.black;
+    private Color                           _backgroundColor       = Color.black;
     [SerializeField]
-    private bool tonemapping = true;
-    private bool _tonemapping = true;
+    private bool                            denoising              = false;
+    private bool                            _denoising             = false;
+    [SerializeField]
+    private bool                            tonemapping            = true;
+    private bool                            _tonemapping           = true;
     [SerializeField]
     private Color                           whiteColor             = Color.white;
     [SerializeField,Range(0.01F, 100.0F)]
     private float                           whiteIntensity         = 1.0f;
-    [SerializeField, Range(0.001F,1.0F)]
+    [SerializeField, Range(0.001F,0.20F)]
     private float                           exposure               = 1.0f;
     private Material                        _luminanceMaterial     = null;
     private Material                        _TonemapMaterial       = null;
@@ -74,6 +79,7 @@ public class SimplePathTracer : MonoBehaviour
             return _copySkyboxMaterial;
         }
     }
+    
 
     private int  _resIdxRenderTarget    = 0;
     private int  _resIdxAccumeTarget    = 0;
@@ -86,24 +92,18 @@ public class SimplePathTracer : MonoBehaviour
     private int _resIdxBackgroundColor  = 0;
     private bool _dirtyAS               = false;
     private bool _updateAS              = false;
-
-    private void Awake()
+    private void OnEnable()
     {
-        if (rayTracingShader == null)
-        {
-            return;
-        }
-        _resIdxRenderTarget    = Shader.PropertyToID("RenderTarget");
-        _resIdxAccumeTarget    = Shader.PropertyToID("AccumeTarget");
-        _resIdxRandomBuffer    = Shader.PropertyToID("RandomBuffer");
-        _resIdxWorld           = Shader.PropertyToID("World");
-        _resIdxAccumeSamples   = Shader.PropertyToID("AccumeSamples");
+        _resIdxRenderTarget = Shader.PropertyToID("RenderTarget");
+        _resIdxAccumeTarget = Shader.PropertyToID("AccumeTarget");
+        _resIdxRandomBuffer = Shader.PropertyToID("RandomBuffer");
+        _resIdxWorld = Shader.PropertyToID("World");
+        _resIdxAccumeSamples = Shader.PropertyToID("AccumeSamples");
         _resIdxDispatchSamples = Shader.PropertyToID("DispatchSamples");
-        _resIdxSkybox          = Shader.PropertyToID("Skybox");
+        _resIdxSkybox = Shader.PropertyToID("Skybox");
         _resIdxBackgroundMode = Shader.PropertyToID("BackgroundMode");
         _resIdxBackgroundColor = Shader.PropertyToID("BackgroundColor");
         _accelerationStructure = new RayTracingAccelerationStructure();
-
         var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID);
         foreach (var renderer in renderers)
         {
@@ -126,9 +126,6 @@ public class SimplePathTracer : MonoBehaviour
                 }
             }
         }
-    }
-    private void OnEnable()
-    {
         CreateTexture();
         CreateRandomBuffer(); 
         BuildAccelerationStructure();
@@ -258,60 +255,82 @@ public class SimplePathTracer : MonoBehaviour
         // ビルド
         _accelerationStructure.Build();
         // ビルドしたAccelerationStructureをShaderに設定
+        if (rayTracingShader == null) { return; }
         rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
     }
 
     bool UpdateResources(int width_, int height_)
     {
+        // 本実装ではASの更新と描画を分けて処理する
+        // つまり, ビルドを行った場合, 処理が重くなるため, 一つ前のフレームの結果を返し, 描画の時間をビルドに割り当てる
         bool updateAS     = _updateAS;
+        bool isDirty      = _dirtyAS ;
+        // 加算フレームをクリアするかどうか（著しくシーンの変更が重なった場合, このフラグを立てて加算フレームをクリアする)
         bool updateFrame  = false;
-        bool isDirty      = _dirtyAS;
-        var viewMatrix    = Camera.main.worldToCameraMatrix;
-        var projMatrix    = Camera.main.projectionMatrix;
-        if (viewMatrix   !=_prevViewMatrix || projMatrix != _prevProjMatrix)
+        // カメラが動いた場合, 加算フレームをクリア
         {
-            updateFrame     = true;
-            _prevViewMatrix = viewMatrix;
-            _prevProjMatrix = projMatrix;
-        }
-        if (_tonemapping != tonemapping)
-        {
-            _tonemapping = tonemapping;
-        }
-        if (backgroundMode != _prevBackgroundMode)
-        {
-            _prevBackgroundMode = backgroundMode;
-            updateFrame = true;
-        }
-        if (_prevBackgroundMode == BackgroundMode.SolidColor)
-        {
-            if (backgroundColor != _backgroundColor)
+            var viewMatrix = Camera.main.worldToCameraMatrix;
+            var projMatrix = Camera.main.projectionMatrix;
+            if (viewMatrix != _prevViewMatrix || projMatrix != _prevProjMatrix)
             {
-                _backgroundColor = backgroundColor;
                 updateFrame = true;
+                _prevViewMatrix = viewMatrix;
+                _prevProjMatrix = projMatrix;
             }
         }
-
+        {
+            // 背景の変更があった場合, 加算フレームをクリア
+            if (backgroundMode != _prevBackgroundMode)
+            {
+                _prevBackgroundMode = backgroundMode;
+                updateFrame = true;
+            }
+            if (_prevBackgroundMode == BackgroundMode.SolidColor)
+            {
+                if (backgroundColor != _backgroundColor)
+                {
+                    _backgroundColor = backgroundColor;
+                    updateFrame = true;
+                }
+            }
+        }
+        /// リサイズ処理
+        Resize(width_, height_, updateFrame);
+        // ASの更新が必要な場合, ビルドを行う
         if (_dirtyAS)
         {
             _updateAS = true;
             _dirtyAS  = false;
         }
+        // ビルド処理
         if (updateAS)
         {
             BuildAccelerationStructure();
-            _updateAS = false;
-            isDirty   = true;
+            _updateAS   = false;
+            isDirty     = true;
+            updateFrame = true;
         }
-        Resize(width_, height_, updateFrame);
-        if (updateFrame || updateAS)
+        // フレームの更新を更新する場合, 加算フレームをクリア
+        if (updateFrame)
         {
             _accumeSamples = 0;
+        }
+        // パラメータの更新
+        {
+            if (_tonemapping != tonemapping)
+            {
+                _tonemapping = tonemapping;
+            }
+            if (_denoising != denoising)
+            {
+                _denoising = denoising;
+            }
         }
         return isDirty;
     }
     private void CopySkybox(RenderTexture dstCubemap)
     {
+        // Skyboxをコピーする
         RenderTexture tempFaceRT = RenderTexture.GetTemporary(dstCubemap.width, dstCubemap.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
         RenderTexture activeRT   = RenderTexture.active;
         for (int i = 0; i < 6; i++)
@@ -324,41 +343,53 @@ public class SimplePathTracer : MonoBehaviour
     }
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        if (rayTracingShader == null)
+        if (rayTracingShader == null || !SystemInfo.supportsRayTracing || !SystemInfo.supportsRayTracingShaders)
         {
             Graphics.Blit(source, destination);
         }
         else
         {
+            // ASの更新を行うかどうか
             if (!UpdateResources(source.width, source.height))
             {
-
+                // 必要ないなら通常通り描画
                 if (_dispatchSamples != dispatchSamples)
                 {
                     _dispatchSamples = dispatchSamples;
                 }
-                RenderTextureDescriptor cubeRTDesc = new RenderTextureDescriptor(512, 512, RenderTextureFormat.ARGBFloat, 0, 0, RenderTextureReadWrite.Linear)
-                {
-                    dimension = UnityEngine.Rendering.TextureDimension.Cube
-
-                };
                 // なぜかRayTracingShader内では, unity_SpecCube0が見つからないとエラーが出るので, ここで一時的にコピーを作成
-                RenderTexture skyCubeRT = RenderTexture.GetTemporary(cubeRTDesc);
+                RenderTexture skyCubeRT = RenderTexture.GetTemporary(new RenderTextureDescriptor(512, 512, RenderTextureFormat.ARGBFloat, 0, 0, RenderTextureReadWrite.Linear){dimension = UnityEngine.Rendering.TextureDimension.Cube});
                 CopySkybox(skyCubeRT);
-                // レイトレーシングシェーダーに必要なパラメータを設定
-                // ほとんどコンピュートと同じ
-                rayTracingShader.SetTexture(_resIdxSkybox     , skyCubeRT);
-                rayTracingShader.SetInt(_resIdxAccumeSamples  , _accumeSamples);
-                rayTracingShader.SetInt(_resIdxDispatchSamples, _dispatchSamples);
-                rayTracingShader.SetInt(_resIdxBackgroundMode, (int)backgroundMode);
-                rayTracingShader.SetVector(_resIdxBackgroundColor, new Vector4(backgroundColor.r, backgroundColor.g, backgroundColor.b, backgroundColor.a));
-                // レイトレーシングシェーダーのパスを設定(必須)
-                // ここではPathTraceという名前のパスを使用
-                // この名前はAccelerationStructureのビルド時に入力したRendererのMaterialのパス名に対応している
-                // もし, パス名が含まれていない場合, そのマテリアルではシェーダが実行されないので注意
-                rayTracingShader.SetShaderPass("SimplePathTracer");
                 // レイトレーシングを実行
+                rayTracingShader.SetTexture(_resIdxSkybox        , skyCubeRT);
+                rayTracingShader.SetInt(_resIdxAccumeSamples     , _accumeSamples);
+                rayTracingShader.SetInt(_resIdxDispatchSamples   , _dispatchSamples);
+                rayTracingShader.SetInt(_resIdxBackgroundMode    , (int)backgroundMode);
+                rayTracingShader.SetVector(_resIdxBackgroundColor, new Vector4(backgroundColor.r, backgroundColor.g, backgroundColor.b, backgroundColor.a));
+                rayTracingShader.SetShaderPass("SimplePathTracer");
                 rayTracingShader.Dispatch("RayGenShaderForSensor", _outputTexture.width, _outputTexture.height, 1, Camera.main);
+                // デノイジングを行う
+                // 本質的な部分ではないので無視してもらっても構わない
+                if (_denoising)
+                {
+                    var denoiser = new Denoiser();
+                    var result   = denoiser.Init(DenoiserType.OpenImageDenoise, _outputTexture.width, _outputTexture.height);
+                    Assert.AreEqual(Denoiser.State.Success, result);
+                    var request  = AsyncGPUReadback.Request(_outputTexture);
+                    request.WaitForCompletion();
+                    result       = denoiser.DenoiseRequest("color", request.GetData<Vector4>());
+                    Assert.AreEqual(Denoiser.State.Success, result);
+                    var dst      = new NativeArray<Vector4>(_outputTexture.width * _outputTexture.height, Allocator.Temp);
+                    result       = denoiser.GetResults(dst); ;
+                    Assert.AreEqual(Denoiser.State.Success, result);
+                    var tex      = new Texture2D(_outputTexture.width, _outputTexture.height, TextureFormat.RGBAFloat, false);
+                    tex.LoadRawTextureData(dst);
+                    tex.Apply(false);
+                    Graphics.Blit(tex, _outputTexture);
+                    denoiser.DisposeDenoiser();
+                    dst.Dispose();
+                    Object.Destroy(tex);
+                }
                 // トーンマッピング(Reinhard Tonemapping)を実行
                 // 本質的な部分ではないので無視してもらっても構わない
                 if (_tonemapping)
@@ -387,7 +418,7 @@ public class SimplePathTracer : MonoBehaviour
             }
             else
             {
-                // 何かしらの理由でレイトレーシングの処理が行われなかった場合, そのままコピー
+                // 行った場合, 処理時間を稼ぐため一つ前のフレームの結果を返す
                 Graphics.Blit(_outputTexture, destination);
             }
         }

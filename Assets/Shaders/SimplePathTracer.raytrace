@@ -53,8 +53,8 @@ void RayGenShaderForSensor()
         payload.seed           = readSeed();
         payload.done           = false;
 
-        [unroll(3)]
-        for (int d = 0; d<3 && !payload.done;++d){
+        [unroll(6)]
+        for (int d = 0; d<6 && !payload.done;++d){
 
                 ray.Origin    = rayOrigin;
                 ray.Direction = rayDirection;
