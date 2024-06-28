@@ -1,0 +1,44 @@
+
+
+#include "unityCG.cginc"
+#include "RTUtils.hlsl"
+RWTexture2D<float4>             RenderTarget;
+RaytracingAccelerationStructure World ;
+
+// Uncomment this pragma for debugging the HLSL code in PIX. GPU performance will be impacted.
+//#pragma enable_ray_tracing_shader_debug_symbols
+struct RayPayloadData {
+    float4 color;
+};
+#pragma max_recursion_depth 1
+
+[shader("raygeneration")]
+void RayGenShaderForTest()
+{
+    uint2  launchIndex   = DispatchRaysIndex().xy;
+    uint2  launchDim     = DispatchRaysDimensions().xy;
+    float2 frameCoord    = float2(launchIndex.x, launchDim.y - launchIndex.y - 1)+float2(0.5,0.5);
+    float2 ndcCoords     = (frameCoord) / float2(launchDim.x - 1, launchDim.y - 1);
+    ndcCoords            = ndcCoords * 2 - float2(1, 1);
+    ndcCoords            = ndcCoords / unity_CameraProjection._m11;
+    float  aspectRatio   = (float)launchDim.x / (float)launchDim.y;
+    float3 viewDirection = normalize(float3(ndcCoords.x * aspectRatio, ndcCoords.y, 1));
+    float3 rayDirection  = normalize(mul((float3x3)unity_CameraToWorld, viewDirection));
+    float3 rayOrigin     =_WorldSpaceCameraPos;
+    RayDesc ray          ;
+    ray.Origin           = rayOrigin;
+    ray.Direction        = rayDirection;
+    ray.TMin             = 0.0f;
+    ray.TMax             = 1000.0f;
+    RayPayloadData payload;
+    payload.color        =  float4(1,0,0,1);
+    TraceRay(World, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
+    RenderTarget[launchIndex] = float4(payload.color);
+}
+
+[Shader ("miss")]
+void MissShaderForTest(inout RayPayloadData payload : SV_RayPayload)
+{
+	payload.color = float4(0,1,0,1);
+}
+

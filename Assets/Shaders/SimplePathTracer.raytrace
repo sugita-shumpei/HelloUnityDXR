@@ -1,0 +1,95 @@
+
+#include "UnityCG.cginc"
+#include "UnityRayTracingMeshUtils.cginc"
+#include "UnityShaderVariables.cginc"
+#include "SimplePathTracerCommon.hlsl"
+
+#define BACKGROUNDMODE_SKYBOX 0
+#define BACKGROUNDMODE_COLOR  1
+
+RWTexture2D<float4>                RenderTarget;
+RWTexture2D<float4>                AccumeTarget;
+RWStructuredBuffer<uint>           RandomBuffer;
+TextureCube<float4>                Skybox;
+SamplerState                       samplerSkybox;
+float4                             BackgroundColor;
+int                                BackgroundMode;
+RaytracingAccelerationStructure    World;
+int                                DispatchSamples;
+int                                AccumeSamples;
+
+// Uncomment this pragma for debugging the HLSL code in PIX. GPU performance will be impacted.
+//#pragma enable_ray_tracing_shader_debug_symbols
+#pragma max_recursion_depth 1
+
+[shader("raygeneration")]
+void RayGenShaderForSensor()
+{
+    uint2  launchIndex = DispatchRaysIndex().xy;
+    uint2  launchDim   = DispatchRaysDimensions().xy;
+    initSeed(RandomBuffer[launchIndex.x + launchDim.x * launchIndex.y]);
+    float2 frameCoord  = float2(launchIndex.x, launchDim.y - launchIndex.y - 1)+float2(0.5,0.5);
+    float4 color = float4(0.0,0.0,0.0,0.0);
+
+    [loop]
+    for (int i = 0; i < DispatchSamples;++i)
+    {
+        float2 frameOffset   = float2(uintToNormalizedFloat(randPCG()),uintToNormalizedFloat(randPCG()))-float2(0.5,0.5);
+        float2 ndcCoords     = (frameCoord+frameOffset) / float2(launchDim.x - 1, launchDim.y - 1);
+        ndcCoords            = ndcCoords * 2 - float2(1, 1);
+        ndcCoords            = ndcCoords / unity_CameraProjection._m11;
+        float  aspectRatio   = (float)launchDim.x / (float)launchDim.y;
+        float3 viewDirection = normalize(float3(ndcCoords.x * aspectRatio, ndcCoords.y, 1));
+        float3 rayDirection  = normalize(mul((float3x3)unity_CameraToWorld, viewDirection));
+        float3 rayOrigin     =_WorldSpaceCameraPos;
+
+        RayDesc ray;
+        RayPayloadData payload;
+        payload.origin         = rayOrigin;
+        payload.direction      = rayDirection;
+        payload.throughput     = float3(1.0,1.0,1.0);
+        payload.emission       = float3(0.0,0.0,0.0);
+        payload.radiance       = float3(0.0,0.0,0.0);
+        payload.seed           = readSeed();
+        payload.done           = false;
+
+        [unroll(3)]
+        for (int d = 0; d<3 && !payload.done;++d){
+
+                ray.Origin    = rayOrigin;
+                ray.Direction = rayDirection;
+                ray.TMin      = 0.0f;
+                ray.TMax      = 1000.0f;
+                TraceRay(World, 0, 0xFF, 0, 1, 0, ray, payload);
+                color.xyz   += payload.radiance;
+                rayOrigin    = payload.origin;
+                rayDirection = payload.direction;
+        }
+        initSeed(payload.seed);
+    }
+    float4 prvAccumeColor    = AccumeTarget[frameCoord];
+    float4 newAccumeColor    = prvAccumeColor + color;
+    AccumeTarget[frameCoord] = newAccumeColor;
+    float4 newResultColor    = newAccumeColor/(float)(AccumeSamples+DispatchSamples);
+    RenderTarget[frameCoord] = newResultColor;
+    RandomBuffer[launchIndex.x + launchDim.x * launchIndex.y] = readSeed();
+}
+
+[shader("miss")]
+void MissShaderForBackground(inout RayPayloadData payload){ 
+    // デフォルトのリフレクションキューブマップをサンプリングして、リフレクションベクトルを使用します
+    // キューブマップデータを実際のカラーにデコードします
+    if (BackgroundMode == BACKGROUNDMODE_SKYBOX)
+	{
+		float3 skyColor = UNITY_SAMPLE_TEXCUBE_LOD(Skybox, payload.direction,0);
+		payload.radiance   += payload.throughput * skyColor;
+		payload.throughput = float3(0,0,0);
+		payload.done       = true;
+	}
+	else
+	{
+		payload.radiance   += payload.throughput * BackgroundColor.xyz;
+		payload.throughput = float3(0,0,0);
+		payload.done       = true;
+	}
+}
