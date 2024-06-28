@@ -16,7 +16,7 @@
 ## セットアップ
 
 1. Unity Hubを開きます。
-2. 'Add' ボタンをクリックして、ダウンロードしたプロジェクトフォルダを選択します。
+2. 'Add' ボタンをクリックして、ダウンロードしたプロジェクトフォルダを選択します
 3. Unityエディタでプロジェクトを開きます。
 4. 'Editor' > 'Player' > 'Other Settings' > 'Graphics API for Windows'がDirectX12になっているか確認
 5. 'Editor' > 'Player' > 'Other Settings' > 'Rendering'が'Linear'になっているか確認
@@ -32,8 +32,8 @@
 
 ## 貢献
 
-カメラの移動用スクリプトは, ねこますさん(https://qiita.com/Nekomasu)の記事(https://qiita.com/Nekomasu/items/f195db36a2516e0dd460)を一部改変したものを使用しています.
-本プロジェクトで使用しているCornellBox SceneはMorgan McGuire's Computer Graphics Archive(https://casual-effects.com/data)から, ダウンロードしたものを使用しています.
+- カメラの移動用スクリプトは, ねこますさん( https://qiita.com/Nekomasu )の記事( https://qiita.com/Nekomasu/items/f195db36a2516e0dd460 )を一部改変したものを使用しています.
+- 本プロジェクトで使用しているCornellBox SceneはMorgan McGuire's Computer Graphics Archive(https://casual-effects.com/data)から, ダウンロードしたものを使用しています.
 
 このサンプルプロジェクトへの貢献は大歓迎です。プルリクエストやイシューを通じて、改善点や機能追加の提案をお願いします。
 
