@@ -308,7 +308,7 @@ public class SimplePathTracer : MonoBehaviour
     }
     void BuildAccelerationStructure()
     {
-        if (_accelerationStructure != null)
+        if (_accelerationStructure == null)
         {
             CreateAccelerationStructure();
         }
