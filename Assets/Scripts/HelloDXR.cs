@@ -108,7 +108,7 @@ public class HelloDXR : MonoBehaviour
     }
     void BuildAccelerationStructure()
     {
-        if (_accelerationStructure != null)
+        if (_accelerationStructure == null)
         {
             CreateAccelerationStructure();
         }
