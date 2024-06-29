@@ -94,24 +94,24 @@ public class HelloDXR : MonoBehaviour
             _prevViewMatrix = viewMatrix;
             _prevProjMatrix = projMatrix;
         }
-        // ƒrƒ‹ƒh
+        // ï¿½rï¿½ï¿½ï¿½h
         BuildAccelerationStructure();
     }
     void CreateAccelerationStructure()
     {
-        if (_accelerationStructure == null)
+        _accelerationStructure = new RayTracingAccelerationStructure(new RayTracingAccelerationStructure.Settings
         {
-            _accelerationStructure = new RayTracingAccelerationStructure(new RayTracingAccelerationStructure.Settings
-            {
-                layerMask = 255,
-                managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
-                rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything
-            });
-
-        }
+            layerMask = 255,
+            managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
+            rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything
+        });
     }
-    private void BuildAccelerationStructure()
+    void BuildAccelerationStructure()
     {
+        if (_accelerationStructure != null)
+        {
+            CreateAccelerationStructure();
+        }
         _accelerationStructure.Build();
     }
 }

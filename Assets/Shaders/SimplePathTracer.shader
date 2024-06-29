@@ -1,6 +1,7 @@
 Shader "Unlit/SimplePathTracer"
 {
     Properties {
+        _MainTex       ("Texture", 2D) = "white" {}
 		_Color         ("Color"         , Color) = (1,1,1,1)
         _EmissionColor ("Emission Color", Color) = (0,0,0,0)
         _EmissionIntensity ("Emission Intensity", Range(0.01, 100)) = 1
@@ -34,6 +35,7 @@ Shader "Unlit/SimplePathTracer"
             };
             
             float4 _Color;
+            UNITY_DECLARE_TEX2D(_MainTex);
 
             v2f vert (appdata v)
             {
@@ -47,7 +49,7 @@ Shader "Unlit/SimplePathTracer"
             fixed4 frag (v2f i) : SV_Target
             {
                 // sample the texture
-                fixed4 col = _Color ;
+                fixed4 col = _Color   * UNITY_SAMPLE_TEX2D_LOD(_MainTex, i.uv,0);
                 // apply fog
                 return col;
             }
@@ -60,6 +62,7 @@ Shader "Unlit/SimplePathTracer"
             Tags { "LightMode" = "RayTracing" }
             
             HLSLPROGRAM
+            #include "UnityCG.cginc"
             #include "UnityRayTracingMeshUtils.cginc"
             #include "SimplePathTracerCommon.hlsl"
             // #pragma raytracingÇÇ¬ÇØÇÈÇ±Ç∆Ç≈, Ç±ÇÃèàóùÇ™raytracingÇ≈Ç†ÇÈÇ∆îFéØÇ≥ÇÍÇÈ
@@ -67,8 +70,9 @@ Shader "Unlit/SimplePathTracer"
             struct RayAttributeData {
                 float2 barycentrics;
             };
+            UNITY_DECLARE_TEX2D(_MainTex);
             float4 _Color;
-            float4 _EmissionColor;
+            float3 _EmissionColor;
             float  _EmissionIntensity;
 
             [shader("closesthit")]
@@ -113,7 +117,7 @@ Shader "Unlit/SimplePathTracer"
                     payload.done = true;
                 }
                 ray_direction          = onbLocalToWorld(wi, fnormal);
-                payload.throughput    *= _Color;
+                payload.throughput    *= _Color * UNITY_SAMPLE_TEX2D_LOD(_MainTex, uv,0);
                 payload.origin         = position + 0.01 * fnormal;
                 payload.direction      = ray_direction;
                 payload.radiance      += prv_throughput * emission;

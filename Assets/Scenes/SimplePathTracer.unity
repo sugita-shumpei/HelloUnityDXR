@@ -322,6 +322,7 @@ MonoBehaviour:
   dispatchSamples: 1
   backgroundMode: 0
   backgroundColor: {r: 0, g: 0, b: 0, a: 1}
+  tonemapping: 1
   whiteColor: {r: 1, g: 1, b: 1, a: 1}
   whiteIntensity: 30
   exposure: 1

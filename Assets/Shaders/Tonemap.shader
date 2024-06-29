@@ -2,11 +2,11 @@ Shader "Hidden/Tonemap"
 {
     Properties
     {
-        _MainTex         ("Texture"              , 2D)    = "white" {}
-        _LuminanceAveTex ("Luminance Average Texture"    , 2D) = "white" {}
-        _WhiteColor      ("White Color"          , Color) = (1, 1, 1, 1)
-        _WhiteIntensity  ("White Intensity"      , float) = 1
-        _Exposure        ("Exposure"             , float) = 1
+        _MainTex             ("Texture"                      , 2D)    = "white" {}
+        _LuminanceAverageTex ("Luminance Average Texture"    , 2D) = "white" {}
+        _WhiteColor          ("White Color"                  , Color) = (1, 1, 1, 1)
+        _WhiteIntensity      ("White Intensity"              , float) = 1
+        _Exposure            ("Exposure"                     , float) = 1
     }
     SubShader
     {

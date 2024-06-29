@@ -53,13 +53,13 @@ void RayGenShaderForSensor()
         payload.seed           = readSeed();
         payload.done           = false;
 
-        [unroll(3)]
-        for (int d = 0; d<3 && !payload.done;++d){
+        [unroll(5)]
+        for (int d = 0; d<5 && !payload.done;++d){
 
                 ray.Origin    = rayOrigin;
                 ray.Direction = rayDirection;
                 ray.TMin      = 0.0f;
-                ray.TMax      = 1000.0f;
+                ray.TMax      = _ProjectionParams.z;
                 TraceRay(World, 0, 0xFF, 0, 1, 0, ray, payload);
                 color.xyz   += payload.radiance;
                 rayOrigin    = payload.origin;
@@ -77,8 +77,6 @@ void RayGenShaderForSensor()
 
 [shader("miss")]
 void MissShaderForBackground(inout RayPayloadData payload){ 
-    // デフォルトのリフレクションキューブマップをサンプリングして、リフレクションベクトルを使用します
-    // キューブマップデータを実際のカラーにデコードします
     if (BackgroundMode == BACKGROUNDMODE_SKYBOX)
 	{
 		float3 skyColor = UNITY_SAMPLE_TEXCUBE_LOD(Skybox, payload.direction,0);
