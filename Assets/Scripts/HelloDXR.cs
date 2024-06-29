@@ -95,7 +95,7 @@ public class HelloDXR : MonoBehaviour
             _prevProjMatrix = projMatrix;
         }
         // ƒrƒ‹ƒh
-        CreateAccelerationStructure();
+        BuildAccelerationStructure();
     }
     void CreateAccelerationStructure()
     {
