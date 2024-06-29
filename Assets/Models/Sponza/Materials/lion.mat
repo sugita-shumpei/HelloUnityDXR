@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: leaf
-  m_Shader: {fileID: 4800000, guid: 91fbc7439d0094d4289b1233b00481bb, type: 3}
+  m_Name: lion
+  m_Shader: {fileID: 46, guid: 0000000000000000f000000000000000, type: 0}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -44,7 +44,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: e37b91dad86dadc4080e2ed2b5aed2b9, type: 3}
+        m_Texture: {fileID: 2800000, guid: 11b98a006e0c4f546aa10a19a56785c8, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
@@ -65,7 +65,6 @@ Material:
     - _Cutoff: 0.5
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
-    - _EmissionIntensity: 1
     - _GlossMapScale: 1
     - _Glossiness: 0
     - _GlossyReflections: 1

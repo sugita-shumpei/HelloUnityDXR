@@ -130,7 +130,7 @@ ModelImporter:
       name: vase_round
     second: {fileID: 2100000, guid: 9f932f6217b4f0d46bbe0faba03f3ede, type: 2}
   materials:
-    materialImportMode: 2
+    materialImportMode: 1
     materialName: 0
     materialSearch: 1
     materialLocation: 1
