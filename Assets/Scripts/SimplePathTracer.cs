@@ -90,7 +90,6 @@ public class SimplePathTracer : MonoBehaviour
     private int _resIdxWhiteColor = 0;
     private int _resIdxWhiteIntensity = 0;
     private int _resIdxExposure = 0;
-    private bool _dirtyAS = false;
     private bool supportRayTracing
     {
         get
@@ -243,11 +242,6 @@ public class SimplePathTracer : MonoBehaviour
         return;
     }
 
-    public void MarkDirty()
-    {
-        _dirtyAS = true;
-    }
-
     void InitShaderParameters()
     {
         if (rayTracingShader == null) { return; }
@@ -308,10 +302,6 @@ public class SimplePathTracer : MonoBehaviour
     }
     void BuildAccelerationStructure()
     {
-        if (_accelerationStructure != null)
-        {
-            CreateAccelerationStructure();
-        }
         _accelerationStructure.Build();
     }
     void UpdateResources(int width_, int height_)
