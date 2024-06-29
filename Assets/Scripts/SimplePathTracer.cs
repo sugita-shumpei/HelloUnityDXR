@@ -90,6 +90,7 @@ public class SimplePathTracer : MonoBehaviour
     private int _resIdxWhiteColor = 0;
     private int _resIdxWhiteIntensity = 0;
     private int _resIdxExposure = 0;
+    private bool _dirtyAS = false;
     private bool supportRayTracing
     {
         get
@@ -242,6 +243,11 @@ public class SimplePathTracer : MonoBehaviour
         return;
     }
 
+    public void MarkDirty()
+    {
+        _dirtyAS = true;
+    }
+
     void InitShaderParameters()
     {
         if (rayTracingShader == null) { return; }
@@ -258,6 +264,28 @@ public class SimplePathTracer : MonoBehaviour
         rayTracingShader.SetTexture(_resIdxRenderTarget, _outputTexture);
         rayTracingShader.SetTexture(_resIdxAccumeTarget, _accumeTexture);
         rayTracingShader.SetBuffer(_resIdxRandomBuffer, _randomBuffer);
+    }
+    void BuildAccelerationStructure()
+    {
+        var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID);
+        _accelerationStructure.ClearInstances();
+        foreach (var renderer in renderers)
+        {
+            var materials = renderer.sharedMaterials;
+            if (materials != null)
+            {
+                int i = 0;
+                var flags = new RayTracingSubMeshFlags[materials.Length];
+                foreach (var material in materials)
+                {
+                    flags[i] = RayTracingSubMeshFlags.Enabled;
+                    ++i;
+                }
+                _accelerationStructure.AddInstance(renderer, flags);
+            }
+        }
+        _accelerationStructure.Build();
+        rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
     }
     bool UpdateCamera()
     {
@@ -291,22 +319,23 @@ public class SimplePathTracer : MonoBehaviour
         }
         return updateFrame;
     }
-    void CreateAccelerationStructure()
+    bool UpdateAccelerationStructures()
     {
-        _accelerationStructure = new RayTracingAccelerationStructure(new RayTracingAccelerationStructure.Settings
+        if (_dirtyAS)
         {
-            layerMask = 255,
-            managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
-            rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything
-        });
-    }
-    void BuildAccelerationStructure()
-    {
-        _accelerationStructure.Build();
+            BuildAccelerationStructure();
+            _dirtyAS  = false;
+            return true;
+        }
+        return false;
     }
     void UpdateResources(int width_, int height_)
     {
         bool updateFrame = false;
+        if (UpdateAccelerationStructures())
+        {
+            updateFrame = true;
+        }
         if (UpdateCamera())
         {
             updateFrame = true;
@@ -315,7 +344,6 @@ public class SimplePathTracer : MonoBehaviour
         {
             updateFrame = true;
         }
-        BuildAccelerationStructure();
         Resize(width_, height_, updateFrame);
     }
     void CopySkybox(RenderTexture dstCubemap)
