@@ -39,7 +39,7 @@
 ## 貢献
 
 - カメラの移動用スクリプトは, ねこますさん( https://qiita.com/Nekomasu )の記事( https://qiita.com/Nekomasu/items/f195db36a2516e0dd460 )を一部改変したものを使用しています.
-- 本プロジェクトで使用しているCornellBox SceneはMorgan McGuire's Computer Graphics Archive(https://casual-effects.com/data)から, ダウンロードしたものを使用しています.
+- 本プロジェクトで使用している3DモデルはMorgan McGuire's Computer Graphics Archive(https://casual-effects.com/data)から, ダウンロードしたものを使用しています.
 - 以下の記事を参考にしています
   - INedelcu氏のプロジェクト(https://github.com/INedelcu/PathTracingDemo)
   - Unityフォーラムの議論　（https://forum.unity.com/threads/dxr-raytracing-effect-from-scratch.794928/）
