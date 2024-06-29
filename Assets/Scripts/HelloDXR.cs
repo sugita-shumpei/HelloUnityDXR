@@ -2,12 +2,15 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+[RequireComponent(typeof(Camera))]
 public class HelloDXR : MonoBehaviour
 {
-    enum BackgroundMode
+    enum ProceduralGeometryType
     {
-        Skybox,
-        SolidColor
+        None,
+        Sphere,
+        Cube,
+        Plane,
     }
     [SerializeField]
     private RayTracingShader rayTracingShader = null;
@@ -16,27 +19,25 @@ public class HelloDXR : MonoBehaviour
 
     private Matrix4x4 _prevViewMatrix = Matrix4x4.identity;
     private Matrix4x4 _prevProjMatrix = Matrix4x4.identity;
+
     private int _resIdxRenderTarget = 0;
     private int _resIdxWorld = 0;
-    private bool _dirtyAS = false;
-    private bool _updateAS = false;
 
-    private void Awake()
+    const string kTargetShaderPass = "HelloDXR";
+    const string kRayGenShaderName = "RayGenShaderForTest";
+
+    private void OnEnable()
     {
         if (rayTracingShader == null)
         {
             return;
         }
-        _resIdxRenderTarget    = Shader.PropertyToID("RenderTarget");
-        _resIdxWorld           = Shader.PropertyToID("World");
-        _accelerationStructure = new RayTracingAccelerationStructure();
+        _resIdxRenderTarget = Shader.PropertyToID("RenderTarget");
+        _resIdxWorld = Shader.PropertyToID("World");
+        CreateAccelerationStructure();
         _renderTarget = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
         _renderTarget.enableRandomWrite = true;
         _renderTarget.Create();
-    }
-    private void OnEnable()
-    {
-        BuildAccelerationStructure();
     }
 
     private void OnDisable()
@@ -52,36 +53,24 @@ public class HelloDXR : MonoBehaviour
             _renderTarget = null;
         }
     }
-    public void MarkDirty()
+    private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        _dirtyAS = true;
-    }
-
-    void BuildAccelerationStructure()
-    {
-        var flags = new List<RayTracingSubMeshFlags>();
-        flags.Capacity = 1;
-        for (int i = 0; i < flags.Capacity; i++)
+        if (rayTracingShader == null)
         {
-            flags.Add(RayTracingSubMeshFlags.Enabled);
+            Graphics.Blit(source, destination);
         }
-        // レイトレーシングの対象となるRendererを取得
-        var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID);
-        // それまでのInstanceをクリア
-        _accelerationStructure.ClearInstances();
-        foreach (var renderer in renderers)
+        else
         {
-            // レイトレーシングの対象となるRendererを登録
-            _accelerationStructure.AddInstance(renderer, flags.ToArray());
+            UpdateResources(source.width, source.height);
+            rayTracingShader.SetShaderPass(kTargetShaderPass);
+            rayTracingShader.SetTexture(_resIdxRenderTarget, _renderTarget);
+            rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
+            rayTracingShader.Dispatch(kRayGenShaderName, Screen.width, Screen.height, 1, Camera.main);
+            Graphics.Blit(_renderTarget, destination);
         }
-        // ビルド
-        _accelerationStructure.Build();
     }
-
-    bool UpdateResources(int width_, int height_)
+    void UpdateResources(int width_, int height_)
     {
-        bool updateAS = _updateAS;
-        bool isDirty = _dirtyAS;
         var viewMatrix = Camera.main.worldToCameraMatrix;
         var projMatrix = Camera.main.projectionMatrix;
         if (_renderTarget)
@@ -93,7 +82,8 @@ public class HelloDXR : MonoBehaviour
                 _renderTarget.height = height_;
                 _renderTarget.Create();
             }
-        } else if (_renderTarget == null)
+        }
+        else if (_renderTarget == null)
         {
             _renderTarget = new RenderTexture(width_, height_, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             _renderTarget.enableRandomWrite = true;
@@ -104,39 +94,24 @@ public class HelloDXR : MonoBehaviour
             _prevViewMatrix = viewMatrix;
             _prevProjMatrix = projMatrix;
         }
-        if (updateAS)
-        {
-            BuildAccelerationStructure();
-            _updateAS = false;
-            isDirty   = true;
-        }
-        return isDirty;
+        // ビルド
+        CreateAccelerationStructure();
     }
-    private void OnRenderImage(RenderTexture source, RenderTexture destination)
+    void CreateAccelerationStructure()
     {
-        if (rayTracingShader == null)
+        if (_accelerationStructure == null)
         {
-            Graphics.Blit(source, destination);
-        }
-        else
-        {
-            if (!UpdateResources(source.width, source.height))
+            _accelerationStructure = new RayTracingAccelerationStructure(new RayTracingAccelerationStructure.Settings
             {
-                // レイトレーシングシェーダーのパスを設定(必須)
-                // ここではPathTraceという名前のパスを使用
-                // この名前はAccelerationStructureのビルド時に入力したRendererのMaterialのパス名に対応している
-                // もし, パス名が含まれていない場合, そのマテリアルではシェーダが実行されないので注意
-                rayTracingShader.SetShaderPass("HelloDXR");
-                rayTracingShader.SetTexture(_resIdxRenderTarget, _renderTarget);
-                rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
-                // レイトレーシングを実行
-                rayTracingShader.Dispatch("RayGenShaderForTest", Screen.width, Screen.height, 1, Camera.main);
-                Graphics.Blit(_renderTarget, destination);
-            }
-            else
-            {
-                Graphics.Blit(source, destination);
-            }
+                layerMask = 255,
+                managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
+                rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything
+            });
+
         }
+    }
+    private void BuildAccelerationStructure()
+    {
+        _accelerationStructure.Build();
     }
 }

@@ -99,12 +99,12 @@ Shader "Unlit/HelloProcedural"
 					if (discriminant > 0)
 					{
 						float t = (-b - sqrt(discriminant)) / (2.0 * a);
-						if (t > 0)
+						if (t < RayTCurrent() && t > RayTMin())
 						{
 							float3 hitPoint = rayOrigin + t * rayDirection;
-							float3 normal = (hitPoint - center) / radius;
+							float3 normal   = (hitPoint - center) / radius;
                             // 頂点角と偏角に変換
-                            float phi   = atan2(normal.z, normal.x);
+                            float phi = atan2(normal.z, normal.x);
                             float theta = acos(normal.y);
                             // テクスチャ座標に変換
                             float u = 1.0 - (phi + 3.141592) / (2.0 * 3.141592);
@@ -113,6 +113,21 @@ Shader "Unlit/HelloProcedural"
 							attr.barycentrics = float2(u, v);
 							ReportHit(t, PROCEDURAL_PRIMITIVE_TYPE_SPHERE, attr);
 						}
+                        t = (-b + sqrt(discriminant)) / (2.0 * a);
+                        if (t < RayTCurrent() && t > RayTMin())
+                        {
+							float3 hitPoint = rayOrigin + t * rayDirection;
+							float3 normal = (hitPoint - center) / radius;
+							// 頂点角と偏角に変換
+							float phi = atan2(normal.z, normal.x);
+							float theta = acos(normal.y);
+							// テクスチャ座標に変換
+							float u = 1.0 - (phi + 3.141592) / (2.0 * 3.141592);
+							float v = theta / 3.141592;
+							RayAttributeData attr;
+							attr.barycentrics = float2(u, v);
+							ReportHit(t, PROCEDURAL_PRIMITIVE_TYPE_SPHERE, attr);
+                        }
 					}
 				}
             }
@@ -135,11 +150,8 @@ Shader "Unlit/HelloProcedural"
 				}
 				else {
 					surface.vPosition = WorldRayOrigin() +  RayTCurrent() * WorldRayDirection();
-					surface.fNormal = normalize(surface.vPosition - _SphereCenter);
-					surface.vNormal = surface.fNormal;
-					surface.vUv = float2(1,0);
+					surface.vUv     = attrib.barycentrics;
 				}
-                surface.vUv = float2(1,0);
 #else
                 float2 bary = attrib.barycentrics;
                 uint3 indices = UnityRayTracingFetchTriangleIndices(primitiveIndex);
