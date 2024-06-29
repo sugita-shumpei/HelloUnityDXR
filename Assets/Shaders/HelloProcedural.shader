@@ -76,12 +76,11 @@ Shader "Unlit/HelloProcedural"
                 float2 barycentrics;
             };
 
+#if RAY_TRACING_PROCEDURAL_GEOMETRY
             #define PROCEDURAL_PRIMITIVE_TYPE_SPHERE 1
-
             uint   _ProceduralPrimitiveType;
             float3 _SphereCenter;
             float  _SphereRadius;
-#if RAY_TRACING_PROCEDURAL_GEOMETRY
             [shader("intersection")]
             void IntersectionMain()
             {
