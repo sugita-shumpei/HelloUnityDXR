@@ -5,10 +5,12 @@ using UnityEngine.Rendering;
 [RequireComponent(typeof(Camera))]
 public class HelloDXR : MonoBehaviour
 {
-    enum BackgroundMode
+    enum ProceduralGeometryType
     {
-        Skybox,
-        SolidColor
+        None,
+        Sphere,
+        Cube,
+        Plane,
     }
     [SerializeField]
     private RayTracingShader rayTracingShader = null;
@@ -17,21 +19,25 @@ public class HelloDXR : MonoBehaviour
 
     private Matrix4x4 _prevViewMatrix = Matrix4x4.identity;
     private Matrix4x4 _prevProjMatrix = Matrix4x4.identity;
-    const string kTargetShaderPass = "HelloDXR";
-    const string kRayGenShaderName = "RayGenShaderForTest";
+
     private int _resIdxRenderTarget = 0;
     private int _resIdxWorld = 0;
-    private bool _dirtyAS = false;
+
+    const string kTargetShaderPass = "HelloDXR";
+    const string kRayGenShaderName = "RayGenShaderForTest";
 
     private void OnEnable()
     {
+        if (rayTracingShader == null)
+        {
+            return;
+        }
         _resIdxRenderTarget = Shader.PropertyToID("RenderTarget");
         _resIdxWorld = Shader.PropertyToID("World");
-        _accelerationStructure = new RayTracingAccelerationStructure();
+        CreateAccelerationStructure();
         _renderTarget = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
         _renderTarget.enableRandomWrite = true;
         _renderTarget.Create();
-        BuildAccelerationStructure();
     }
 
     private void OnDisable()
@@ -56,90 +62,56 @@ public class HelloDXR : MonoBehaviour
         else
         {
             UpdateResources(source.width, source.height);
-            {
-                rayTracingShader.SetShaderPass(kTargetShaderPass);
-                rayTracingShader.SetTexture(_resIdxRenderTarget, _renderTarget);
-                rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
-                rayTracingShader.Dispatch(kRayGenShaderName, Screen.width, Screen.height, 1, Camera.main);
-                Graphics.Blit(_renderTarget, destination);
-            }
+            rayTracingShader.SetShaderPass(kTargetShaderPass);
+            rayTracingShader.SetTexture(_resIdxRenderTarget, _renderTarget);
+            rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
+            rayTracingShader.Dispatch(kRayGenShaderName, Screen.width, Screen.height, 1, Camera.main);
+            Graphics.Blit(_renderTarget, destination);
         }
     }
-    void Resize(int width_, int height_, bool clear_ = false)
+    void UpdateResources(int width_, int height_)
     {
-        if (_renderTarget.width == width_ && _renderTarget.height == height_)
+        var viewMatrix = Camera.main.worldToCameraMatrix;
+        var projMatrix = Camera.main.projectionMatrix;
+        if (_renderTarget)
         {
-            _renderTarget.Release();
-            _renderTarget.width = width_;
-            _renderTarget.height = height_;
+            if (_renderTarget.width != width_ || _renderTarget.height != height_)
+            {
+                _renderTarget.Release();
+                _renderTarget.width = width_;
+                _renderTarget.height = height_;
+                _renderTarget.Create();
+            }
+        }
+        else if (_renderTarget == null)
+        {
+            _renderTarget = new RenderTexture(width_, height_, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            _renderTarget.enableRandomWrite = true;
             _renderTarget.Create();
-            return;
         }
-        return;
-    }
-
-    public void MarkDirty()
-    {
-        _dirtyAS = true;
-    }
-
-    void BuildAccelerationStructure()
-    {
-        var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID);
-        _accelerationStructure.ClearInstances();
-        foreach (var renderer in renderers)
-        {
-            var materials = renderer.sharedMaterials;
-            if (materials != null)
-            {
-                int i = 0;
-                var flags = new RayTracingSubMeshFlags[materials.Length];
-                foreach (var material in materials)
-                {
-                    flags[i] = RayTracingSubMeshFlags.Enabled;
-                    ++i;
-                }
-                _accelerationStructure.AddInstance(renderer, flags);
-            }
-        }
-        _accelerationStructure.Build();
-        rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
-    }
-    bool UpdateCamera()
-    {
-        var camera = gameObject.GetComponent<Camera>();
-        if (camera == null) { return false; }
-        var viewMatrix = camera.worldToCameraMatrix;
-        var projMatrix = camera.projectionMatrix;
         if (viewMatrix != _prevViewMatrix || projMatrix != _prevProjMatrix)
         {
             _prevViewMatrix = viewMatrix;
             _prevProjMatrix = projMatrix;
-            return true;
         }
-        return false;
+        // ƒrƒ‹ƒh
+        BuildAccelerationStructure();
     }
-    bool UpdateAccelerationStructures()
+    void CreateAccelerationStructure()
     {
-        if (_dirtyAS)
+        if (_accelerationStructure == null)
         {
-            BuildAccelerationStructure();
-            _dirtyAS = false;
-            return true;
+            _accelerationStructure = new RayTracingAccelerationStructure(new RayTracingAccelerationStructure.Settings
+            {
+                layerMask = 255,
+                managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
+                rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything
+            });
+
         }
-        return false;
     }
-    void UpdateResources(int width_, int height_)
+    private void BuildAccelerationStructure()
     {
-        bool updateFrame = false;
-        if (UpdateAccelerationStructures())
-        {
-            updateFrame = true;
-        }
-        if (UpdateCamera())
-        {
-            updateFrame = true;
-        }
-        Resize(width_, height_, updateFrame);
+        _accelerationStructure.Build();
     }
 }
