@@ -99,19 +99,19 @@ public class HelloDXR : MonoBehaviour
     }
     void CreateAccelerationStructure()
     {
-        if (_accelerationStructure == null)
+        _accelerationStructure = new RayTracingAccelerationStructure(new RayTracingAccelerationStructure.Settings
         {
-            _accelerationStructure = new RayTracingAccelerationStructure(new RayTracingAccelerationStructure.Settings
-            {
-                layerMask = 255,
-                managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
-                rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything
-            });
-
-        }
+            layerMask = 255,
+            managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
+            rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything
+        });
     }
-    private void BuildAccelerationStructure()
+    void BuildAccelerationStructure()
     {
+        if (_accelerationStructure != null)
+        {
+            CreateAccelerationStructure();
+        }
         _accelerationStructure.Build();
     }
 }
