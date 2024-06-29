@@ -267,12 +267,22 @@ public class SimplePathTracer : MonoBehaviour
     }
     void BuildAccelerationStructure()
     {
-        var flags = new List<RayTracingSubMeshFlags>(new RayTracingSubMeshFlags[1] { RayTracingSubMeshFlags.Enabled });
         var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID);
         _accelerationStructure.ClearInstances();
         foreach (var renderer in renderers)
         {
-            _accelerationStructure.AddInstance(renderer, flags.ToArray());
+            var materials = renderer.sharedMaterials;
+            if (materials != null)
+            {
+                int i = 0;
+                var flags = new RayTracingSubMeshFlags[materials.Length];
+                foreach (var material in materials)
+                {
+                    flags[i] = RayTracingSubMeshFlags.Enabled;
+                    ++i;
+                }
+                _accelerationStructure.AddInstance(renderer, flags);
+            }
         }
         _accelerationStructure.Build();
         rayTracingShader.SetAccelerationStructure(_resIdxWorld, _accelerationStructure);
