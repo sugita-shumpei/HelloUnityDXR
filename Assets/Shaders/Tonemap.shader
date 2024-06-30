@@ -2,11 +2,10 @@ Shader "Hidden/Tonemap"
 {
     Properties
     {
-        _MainTex             ("Texture"                      , 2D)    = "white" {}
-        _LuminanceAverageTex ("Luminance Average Texture"    , 2D) = "white" {}
-        _WhiteColor          ("White Color"                  , Color) = (1, 1, 1, 1)
-        _WhiteIntensity      ("White Intensity"              , float) = 1
-        _Exposure            ("Exposure"                     , float) = 1
+        _MainTex     ("Texture"          , 2D)    = "white" {}
+        _AveLuminance("Luminance Average", float) = 0
+        _MaxLuminance("Luminance Maximum", float) = 0
+        _Exposure    ("Exposure"         , float) = 1
     }
     SubShader
     {
@@ -18,6 +17,8 @@ Shader "Hidden/Tonemap"
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_local _ _USE_SMALL_TEXTURE
+            #pragma multi_compile_local _ _TONEMODE_LINEAR _TONEMODE_REINHARD _TONEMODE_UNCHARTED2 _TONEMODE_ACES
 
             #include "UnityCG.cginc"
 
@@ -41,22 +42,47 @@ Shader "Hidden/Tonemap"
                 return o;
             }
 
+
             sampler2D _MainTex;
-            sampler2D _LuminanceAverageTex;
-            float4 _WhiteColor;
-            float _WhiteIntensity;
-            float _Exposure;
+            sampler2D _SmallTex;
+            float     _AveLuminance;
+            float     _MaxLuminance;
+            float     _Exposure;
 
             fixed4 frag (v2f i) : SV_Target
             {
                 fixed4 col = tex2D(_MainTex, i.uv);
-                float luminanceAverage    = tex2Dlod(_LuminanceAverageTex, float4(i.uv,0,100)).r;
-                float luminance           = Luminance(col.rgb);
-                float3 colorLuminance     = _Exposure * luminance/ luminanceAverage;
-                float3 white              = _WhiteColor.rgb * _WhiteIntensity;
-                float3 whiteLuminance     = _Exposure * Luminance(white)/ luminanceAverage;
-                return float4 (col.rgb*(colorLuminance/luminance)* (float3(1,1,1)+colorLuminance/(whiteLuminance*whiteLuminance))/(float3(1,1,1)+whiteLuminance),1);
-                //return float4(luminanceAverage, luminanceAverage, luminanceAverage, 1);
+                float  baseLuminance = Luminance(col.rgb) ;
+            #if _USE_SMALL_TEXTURE
+                float3 smallTexValue = tex2D(_SmallTex, float2(0,0)).rgb;
+                float  maxLuminance = smallTexValue.r;
+                float  aveLuminance = smallTexValue.g;
+            #else
+                float  maxLuminance = _MaxLuminance;
+                float  aveLuminance = _AveLuminance;
+            #endif
+                float  inputLuminance  = _Exposure*baseLuminance / aveLuminance;
+                
+            #if   _TONEMODE_LINEAR
+                return float4 (col.rgb * _Exposure / aveLuminance, col.a);
+            #elif _TONEMODE_REINHARD
+                float  whiteLuminance  = _Exposure*maxLuminance / aveLuminance;
+                float  outputLuminance = (inputLuminance / (1+inputLuminance)) * (1+inputLuminance / (whiteLuminance*whiteLuminance));
+                return float4 (col.rgb * outputLuminance / baseLuminance, col.a);
+            #elif _TONEMODE_ACES
+                const float a = 2.51;
+                const float b = 0.03;
+                const float c = 2.43;
+                const float d = 0.59;
+                const float e = 0.14;
+                // float3 in_col = col.rgb *0.6 *_Exposure / aveLuminance;
+                // return float4(saturate(in_col * (a * in_col + b) / (in_col * (c * in_col + d) + e)),col.a);
+                float tempLuminance = inputLuminance * 0.6;
+                float outputLuminance = saturate((tempLuminance * (a * tempLuminance + b)) / (tempLuminance * (c * tempLuminance + d) + e));
+                return float4(col.rgb * outputLuminance / baseLuminance, col.a);
+            #else
+                return col;
+            #endif
             }
             ENDCG
         }

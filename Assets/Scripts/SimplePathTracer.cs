@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 
 [RequireComponent(typeof(Camera))]
@@ -9,38 +10,66 @@ public class SimplePathTracer : MonoBehaviour
 {
     enum BackgroundMode
     {
-        Skybox,
-        SolidColor
+        Skybox = 0,
+        SolidColor = 1
     }
+    enum TonemapMode
+    {
+        None,
+        Linear,
+        Reinhard,
+        Uncharted2,
+        ACES
+    }
+
+    static BackgroundMode ConvertToBackgroundMode(CameraClearFlags clearFlags)
+    {
+        if (clearFlags == CameraClearFlags.Skybox)
+        {
+            return BackgroundMode.Skybox;
+        }
+        return BackgroundMode.SolidColor;
+    }
+    const string kTargetShaderPass = "SimplePathTracer";
+    const string kRayGenShaderName = "RayGenShaderForSensor";
     [SerializeField]
     private RayTracingShader rayTracingShader = null;
     private RenderTexture _outputTexture = null;
     private RenderTexture _accumeTexture = null;
     private RayTracingAccelerationStructure _accelerationStructure = null;
     private GraphicsBuffer _randomBuffer = null;
-    private Matrix4x4 _prevViewMatrix = Matrix4x4.identity;
-    private Matrix4x4 _prevProjMatrix = Matrix4x4.identity;
-    private int _accumeSamples = 0;
+    private Camera           _camera = null;
+    Camera targetCamera
+    {
+        get
+        {
+            if (_camera == null)
+            {
+                _camera = gameObject.GetComponent<Camera>();
+                if (_camera == null)
+                {
+                    _camera = gameObject.AddComponent<Camera>();
+                }
+            }
+            return _camera;
+        }
+    }
+    private Matrix4x4        _prevViewMatrix = Matrix4x4.identity;
+    private Matrix4x4        _prevProjMatrix = Matrix4x4.identity;
+    private BackgroundMode   _prevBackgroundMode  = BackgroundMode.Skybox;
+    private Color            _prevBackgroundColor = Color.black;
+    private int              _accumeSamples = 0;
     [SerializeField]
     private int dispatchSamples = 1;
     private int _dispatchSamples = 1;
     [SerializeField]
-    private BackgroundMode backgroundMode = BackgroundMode.Skybox;
-    private BackgroundMode _prevBackgroundMode = BackgroundMode.Skybox;
-    [SerializeField]
-    private Color backgroundColor = Color.black;
-    private Color _backgroundColor = Color.black;
-    [SerializeField]
-    private bool tonemapping = true;
-    private bool _tonemapping = true;
-    [SerializeField]
-    private Color whiteColor = Color.white;
-    [SerializeField, Range(0.01F, 100.0F)]
-    private float whiteIntensity = 1.0f;
-    [SerializeField, Range(0.001F, 1.0F)]
-    private float exposure = 1.0f;
-    private Material _luminanceMaterial = null;
-    private Material _TonemapMaterial = null;
+    private TonemapMode tonemapMode = TonemapMode.None;
+    private TonemapMode _prevTonemapMode = TonemapMode.None;
+    [SerializeField, Range(0.001F, 0.5F)]
+    private float       exposure = 0.23F;
+    private Material _luminanceMaterial  = null;
+    private Material _luminanceHistogramMaterial = null;
+    private Material _TonemapMaterial    = null;
     private Material _copySkyboxMaterial = null;
     Material luminanceMaterial
     {
@@ -53,6 +82,17 @@ public class SimplePathTracer : MonoBehaviour
             return _luminanceMaterial;
         }
     }
+    Material luminanceHistogramMaterial
+    {
+        get
+        {
+            if (_luminanceHistogramMaterial == null)
+            {
+                _luminanceHistogramMaterial = new Material(Shader.Find("Hidden/LuminanceHistogram"));
+            }
+            return _luminanceHistogramMaterial;
+        }
+    }   
     Material tonemapMaterial
     {
         get
@@ -60,6 +100,7 @@ public class SimplePathTracer : MonoBehaviour
             if (_TonemapMaterial == null)
             {
                 _TonemapMaterial = new Material(Shader.Find("Hidden/Tonemap"));
+                _TonemapMaterial.EnableKeyword("_USE_SMALL_TEXTURE");
             }
             return _TonemapMaterial;
         }
@@ -75,8 +116,6 @@ public class SimplePathTracer : MonoBehaviour
             return _copySkyboxMaterial;
         }
     }
-    const string kTargetShaderPass = "SimplePathTracer";
-    const string kRayGenShaderName = "RayGenShaderForSensor";
     private int _resIdxRenderTarget = 0;
     private int _resIdxAccumeTarget = 0;
     private int _resIdxRandomBuffer = 0;
@@ -84,12 +123,8 @@ public class SimplePathTracer : MonoBehaviour
     private int _resIdxAccumeSamples = 0;
     private int _resIdxSkybox = 0;
     private int _resIdxDispatchSamples = 0;
-    private int _resIdxBackgroundMode = 0;
+    private int _resIdxBackgroundMode  = 0;
     private int _resIdxBackgroundColor = 0;
-    private int _resIdxLuminanceAverageTex = 0;
-    private int _resIdxWhiteColor = 0;
-    private int _resIdxWhiteIntensity = 0;
-    private int _resIdxExposure = 0;
     private bool _dirtyAS = false;
     private bool supportRayTracing
     {
@@ -110,10 +145,9 @@ public class SimplePathTracer : MonoBehaviour
         _resIdxSkybox = Shader.PropertyToID("Skybox");
         _resIdxBackgroundMode = Shader.PropertyToID("BackgroundMode");
         _resIdxBackgroundColor = Shader.PropertyToID("BackgroundColor");
-        _resIdxLuminanceAverageTex = Shader.PropertyToID("_LuminanceAverageTex");
-        _resIdxWhiteColor = Shader.PropertyToID("_WhiteColor");
-        _resIdxWhiteIntensity = Shader.PropertyToID("_WhiteIntensity");
-        _resIdxExposure = Shader.PropertyToID("_Exposure");
+        _prevBackgroundMode  = ConvertToBackgroundMode(targetCamera.clearFlags);
+        _prevBackgroundColor = targetCamera.backgroundColor;
+        _prevTonemapMode = tonemapMode;
         _accelerationStructure = new RayTracingAccelerationStructure();
         var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID);
         foreach (var renderer in renderers)
@@ -289,10 +323,9 @@ public class SimplePathTracer : MonoBehaviour
     }
     bool UpdateCamera()
     {
-        var camera = gameObject.GetComponent<Camera>();
-        if (camera == null) { return false; }
-        var viewMatrix = camera.worldToCameraMatrix;
-        var projMatrix = camera.projectionMatrix;
+        if (targetCamera == null) { return false; }
+        var viewMatrix = targetCamera.worldToCameraMatrix;
+        var projMatrix = targetCamera.projectionMatrix;
         if (viewMatrix != _prevViewMatrix || projMatrix != _prevProjMatrix)
         {
             _prevViewMatrix = viewMatrix;
@@ -304,16 +337,18 @@ public class SimplePathTracer : MonoBehaviour
     bool UpdateBackground()
     {
         bool updateFrame = false;
+        var backgroundMode = ConvertToBackgroundMode(targetCamera.clearFlags);
         if (backgroundMode != _prevBackgroundMode)
         {
             _prevBackgroundMode = backgroundMode;
             updateFrame = true;
         }
+        var backgroundColor = targetCamera.backgroundColor;
         if (_prevBackgroundMode == BackgroundMode.SolidColor)
         {
-            if (backgroundColor != _backgroundColor)
+            if (backgroundColor != _prevBackgroundColor)
             {
-                _backgroundColor = backgroundColor;
+                _prevBackgroundColor = backgroundColor;
                 updateFrame = true;
             }
         }
@@ -321,6 +356,7 @@ public class SimplePathTracer : MonoBehaviour
     }
     bool UpdateAccelerationStructures()
     {
+        // SceneÇ…ïœçXÇ™Ç†Ç¡ÇΩÇ∆Ç´ÇÃÇ›ASÇçƒç\ízÇ∑ÇÈ
         if (_dirtyAS)
         {
             BuildAccelerationStructure();
@@ -364,32 +400,88 @@ public class SimplePathTracer : MonoBehaviour
         rayTracingShader.SetTexture(_resIdxSkybox, skybox);
         rayTracingShader.SetInt(_resIdxAccumeSamples, _accumeSamples);
         rayTracingShader.SetInt(_resIdxDispatchSamples, _dispatchSamples);
-        rayTracingShader.SetInt(_resIdxBackgroundMode, (int)backgroundMode);
-        rayTracingShader.SetVector(_resIdxBackgroundColor, new Vector4(backgroundColor.r, backgroundColor.g, backgroundColor.b, backgroundColor.a));
+        rayTracingShader.SetInt(_resIdxBackgroundMode, (int)_prevBackgroundMode);
+        rayTracingShader.SetVector(_resIdxBackgroundColor, new Vector4(_prevBackgroundColor.r, _prevBackgroundColor.g, _prevBackgroundColor.b, _prevBackgroundColor.a));
         rayTracingShader.SetShaderPass(kTargetShaderPass);
-        rayTracingShader.Dispatch(kRayGenShaderName, _outputTexture.width, _outputTexture.height, 1, Camera.main);
+        rayTracingShader.Dispatch(kRayGenShaderName, _outputTexture.width, _outputTexture.height, 1, targetCamera);
         _accumeSamples = _accumeSamples + _dispatchSamples;
     }
     bool ExecuteToneMapping(RenderTexture source, RenderTexture destination)
     {
-        if (_tonemapping != tonemapping)
+        var prevTonemapMode = _prevTonemapMode;
+        var currTonemapMode = tonemapMode;
+        if (_prevTonemapMode != tonemapMode)
         {
-            _tonemapping = tonemapping;
+            _prevTonemapMode = tonemapMode;
         }
-        if (_tonemapping)
+        if (currTonemapMode == TonemapMode.None)
         {
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor(source.width, source.height, RenderTextureFormat.ARGBFloat, 0, Texture.GenerateAllMips);
-            rtDesc.useMipMap = true;
-            RenderTexture luminanceRT = RenderTexture.GetTemporary(rtDesc);
+            return false;
+        }
+        {
+            RenderTexture luminanceRT      = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             Graphics.Blit(source, luminanceRT, luminanceMaterial);
-            tonemapMaterial.SetTexture(_resIdxLuminanceAverageTex, luminanceRT);
-            tonemapMaterial.SetColor(_resIdxWhiteColor, whiteColor);
-            tonemapMaterial.SetFloat(_resIdxWhiteIntensity, whiteIntensity);
-            tonemapMaterial.SetFloat(_resIdxExposure, exposure);
+            // TODO: GPUÇ≈ÇÃåvéZÇ…ïœçX
+            RenderTexture smallRT = null;
+            {
+                int requiredTexCount = Mathf.CeilToInt(Mathf.Log(Mathf.Max(source.width, source.height), 8));
+                RenderTexture[] luminanceMipRTs = new RenderTexture[requiredTexCount];
+                for (int i = 0; i < requiredTexCount; i++)
+                {
+                    luminanceMipRTs[i] = RenderTexture.GetTemporary(Mathf.Max(source.width >> (3*(i+1)),1), Mathf.Max(source.height >> (3 * (i + 1)),1), 0,RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                }
+                Graphics.Blit(luminanceRT, luminanceMipRTs[0], luminanceHistogramMaterial);
+                for (int i = 0; i < requiredTexCount-1; i++)
+                {
+                    Graphics.Blit(luminanceMipRTs[i], luminanceMipRTs[i+1], luminanceHistogramMaterial);
+                }
+                smallRT = luminanceMipRTs[requiredTexCount - 1];
+                for (int i = 0; i < requiredTexCount-1; i++)
+                {
+                    RenderTexture.ReleaseTemporary(luminanceMipRTs[i]);
+                }
+                tonemapMaterial.SetTexture("_SmallTex", smallRT);
+                tonemapMaterial.SetFloat("_Exposure", exposure);
+            }
+            if (currTonemapMode != prevTonemapMode)
+            {
+                if (currTonemapMode == TonemapMode.Linear)
+                {
+                    tonemapMaterial.EnableKeyword("_TONEMODE_LINEAR");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_REINHARD");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_UNCHARTED2");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_ACES");
+                }
+                else if (currTonemapMode == TonemapMode.Reinhard)
+                {
+                    tonemapMaterial.EnableKeyword("_TONEMODE_REINHARD");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_LINEAR");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_UNCHARTED2");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_ACES");
+                }
+                else if (currTonemapMode == TonemapMode.Uncharted2)
+                {
+                    Debug.Log("Tonemap Uncharted is Not Implemanted Yet!");
+                    tonemapMaterial.EnableKeyword("_TONEMODE_UNCHARTED2");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_REINHARD");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_LINEAR");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_ACES");
+                }
+                else if (currTonemapMode == TonemapMode.ACES)
+                {
+                    tonemapMaterial.EnableKeyword("_TONEMODE_ACES");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_REINHARD");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_LINEAR");
+                    tonemapMaterial.DisableKeyword("_TONEMODE_UNCHARTED2");
+                }
+            }
             Graphics.Blit(source, destination, tonemapMaterial);
+            if (smallRT != null)
+            {
+                RenderTexture.ReleaseTemporary(smallRT);
+            }
             RenderTexture.ReleaseTemporary(luminanceRT);
             return true;
         }
-        return false;
     }
 }

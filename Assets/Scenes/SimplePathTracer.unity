@@ -320,12 +320,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rayTracingShader: {fileID: 4807578003741378534, guid: c34a9b175652f184d819bf0b2f9322c5, type: 3}
   dispatchSamples: 1
-  backgroundMode: 0
-  backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   tonemapping: 1
-  whiteColor: {r: 1, g: 1, b: 1, a: 1}
-  whiteIntensity: 30
-  exposure: 1
+  exposure: 0.23
 --- !u!114 &963194230
 MonoBehaviour:
   m_ObjectHideFlags: 0
