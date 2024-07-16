@@ -3,7 +3,47 @@ guid: cda43698d9bf6244785e4bffdfcff685
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: backWallMat
+    second: {fileID: 2100000, guid: 43feafae67c8e044c88791e2f519f150, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: ceilingMat
+    second: {fileID: 2100000, guid: 23af017835ccda045aaca245283479e8, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: floorMat
+    second: {fileID: 2100000, guid: a7e6546e59b07b9468b3cfd487ea4c7a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: leftWallMat
+    second: {fileID: 2100000, guid: f77c7ac73fed697458ca86ba758e05d0, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: lightMat
+    second: {fileID: 2100000, guid: 2187dfb686756524b81ae5e7d90ef6e8, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rightWallMat
+    second: {fileID: 2100000, guid: 47fbec477925d3140868d4c676ad83c9, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: shortBoxMat
+    second: {fileID: 2100000, guid: f1e2e748a8b8d254c88e8e7f9a6ce977, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: sphereMat
+    second: {fileID: 2100000, guid: 1b7faf24f79b34d40a04dc04abda398d, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
