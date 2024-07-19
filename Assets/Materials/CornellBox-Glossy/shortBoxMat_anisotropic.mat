@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: sphereMat
-  m_Shader: {fileID: 4800000, guid: c4862abd8882be54294fba7c8590fab9, type: 3}
+  m_Name: shortBoxMat_anisotropic
+  m_Shader: {fileID: 4800000, guid: b75516e7edb27784e8c67b4bdefa9170, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -73,14 +73,16 @@ Material:
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
-    - _Roughness: 0.558
+    - _Roughness: 0.343
+    - _Roughness1: 0.026
+    - _Roughness2: 0.494
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
-    - _Color: {r: 0.48599994, g: 0.6309999, b: 0.663, a: 1}
+    - _Color: {r: 0.525, g: 0.50999993, b: 0.48, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
