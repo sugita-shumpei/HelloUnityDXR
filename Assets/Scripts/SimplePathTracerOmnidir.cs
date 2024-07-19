@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 
 [RequireComponent(typeof(Camera))]
-public class SimplePathTracer : MonoBehaviour
+public class SimplePathTracerOmnidir : MonoBehaviour
 {
     enum BackgroundMode
     {
@@ -52,8 +52,6 @@ public class SimplePathTracer : MonoBehaviour
             return _camera;
         }
     }
-    private Matrix4x4 _prevViewMatrix = Matrix4x4.identity;
-    private Matrix4x4 _prevProjMatrix = Matrix4x4.identity;
     private BackgroundMode _prevBackgroundMode = BackgroundMode.Skybox;
     private Color _prevBackgroundColor = Color.black;
     private int _accumeSamples = 0;
@@ -69,10 +67,6 @@ public class SimplePathTracer : MonoBehaviour
     private Material _luminanceHistogramMaterial = null;
     private Material _TonemapMaterial = null;
     private Material _copySkyboxMaterial = null;
-    [SerializeField]
-    private bool _visLuminance = false;
-    [SerializeField]
-    private Material _LUTMaterial;
     Material luminanceMaterial
     {
         get
@@ -148,6 +142,16 @@ public class SimplePathTracer : MonoBehaviour
             return _copySkyboxMaterial;
         }
     }
+    [SerializeField]
+    private bool _visLuminance = false;
+    [SerializeField]
+    private Material _LUTMaterial;
+    [SerializeField]
+    private Vector3 cameraPosition = new Vector3(0.0f, 0.0f, 0.0f);
+    private Vector3 _cameraPosition;
+    [SerializeField]
+    private Vector3 cameraNormal = new Vector3(0.0f, 0.0f, 1.0f);
+    private Vector3 _cameraNormal;
     private int _resIdxRenderTarget = 0;
     private int _resIdxAccumeTarget = 0;
     private int _resIdxRandomBuffer = 0;
@@ -157,6 +161,8 @@ public class SimplePathTracer : MonoBehaviour
     private int _resIdxDispatchSamples = 0;
     private int _resIdxBackgroundMode = 0;
     private int _resIdxBackgroundColor = 0;
+    private int _resIdxOmnidirCameraPosition = 0;
+    private int _resIdxOmnidirCameraNormal = 0;
     private bool _dirtyAS = false;
     private bool supportRayTracing
     {
@@ -177,9 +183,13 @@ public class SimplePathTracer : MonoBehaviour
         _resIdxSkybox = Shader.PropertyToID("Skybox");
         _resIdxBackgroundMode = Shader.PropertyToID("BackgroundMode");
         _resIdxBackgroundColor = Shader.PropertyToID("BackgroundColor");
+        _resIdxOmnidirCameraPosition = Shader.PropertyToID("OmnidirCameraPosition");
+        _resIdxOmnidirCameraNormal = Shader.PropertyToID("OmnidirCameraNormal");
         _prevBackgroundMode = ConvertToBackgroundMode(targetCamera.clearFlags);
         _prevBackgroundColor = targetCamera.backgroundColor;
         _prevTonemapMode = tonemapMode;
+        _cameraPosition = cameraPosition;
+        _cameraNormal = cameraNormal;
         _accelerationStructure = new RayTracingAccelerationStructure();
         var renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.InstanceID);
         foreach (var renderer in renderers)
@@ -366,12 +376,14 @@ public class SimplePathTracer : MonoBehaviour
     bool UpdateCamera()
     {
         if (targetCamera == null) { return false; }
-        var viewMatrix = targetCamera.worldToCameraMatrix;
-        var projMatrix = targetCamera.projectionMatrix;
-        if (viewMatrix != _prevViewMatrix || projMatrix != _prevProjMatrix)
+        if (_cameraPosition != cameraPosition)
         {
-            _prevViewMatrix = viewMatrix;
-            _prevProjMatrix = projMatrix;
+            _cameraPosition = cameraPosition;
+            return true;
+        }
+        if (_cameraNormal != cameraNormal)
+        {
+            _cameraNormal = cameraNormal;
             return true;
         }
         return false;
@@ -439,13 +451,15 @@ public class SimplePathTracer : MonoBehaviour
     void TraceRay(RenderTexture skybox)
     {
         if (_dispatchSamples != dispatchSamples) { _dispatchSamples = dispatchSamples; }
+        rayTracingShader.SetVector(_resIdxOmnidirCameraPosition, new Vector4(_cameraPosition.x, _cameraPosition.y, _cameraPosition.z, 0.0f));
+        rayTracingShader.SetVector(_resIdxOmnidirCameraNormal, new Vector4(_cameraNormal.x, _cameraNormal.y, _cameraNormal.z, 0.0f));
         rayTracingShader.SetTexture(_resIdxSkybox, skybox);
         rayTracingShader.SetInt(_resIdxAccumeSamples, _accumeSamples);
         rayTracingShader.SetInt(_resIdxDispatchSamples, _dispatchSamples);
         rayTracingShader.SetInt(_resIdxBackgroundMode, (int)_prevBackgroundMode);
         rayTracingShader.SetVector(_resIdxBackgroundColor, new Vector4(_prevBackgroundColor.r, _prevBackgroundColor.g, _prevBackgroundColor.b, _prevBackgroundColor.a));
         rayTracingShader.SetShaderPass(kTargetShaderPass);
-        rayTracingShader.Dispatch(kRayGenShaderName, _outputTexture.width, _outputTexture.height, 1, targetCamera);
+        rayTracingShader.Dispatch(kRayGenShaderName, _outputTexture.width, _outputTexture.height, 1);
         _accumeSamples = _accumeSamples + _dispatchSamples;
     }
     bool ExecuteToneMapping(RenderTexture source, RenderTexture destination)
