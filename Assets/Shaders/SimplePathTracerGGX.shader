@@ -106,6 +106,9 @@ Shader "Unlit/SimplePathTracerGGX"
                 float3 wi           = onbWorldToLocal(-ray_direction,fnormal);
                 float3 wo; float pdf;
                 float3 weights      = SampleAndEval_BRDF_GGX_NdotO_Per_D_NdotM(wi,rand2,_Color,_Roughness*_Roughness,wo,pdf);
+                if (isnan(weights.x) || isnan(weights.y) || isnan(weights.z)) {
+					weights = float3(0,0,0);
+				}
                 payload.throughput *= weights;
                 payload.origin      = position + 0.01 * fnormal;
                 payload.direction   = onbLocalToWorld(wo,fnormal);

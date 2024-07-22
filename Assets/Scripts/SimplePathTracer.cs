@@ -1,8 +1,6 @@
 using System.Collections.Generic;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 
 [RequireComponent(typeof(Camera))]
@@ -38,7 +36,7 @@ public class SimplePathTracer : MonoBehaviour
     private RenderTexture _accumeTexture = null;
     private RayTracingAccelerationStructure _accelerationStructure = null;
     private GraphicsBuffer _randomBuffer = null;
-    private Camera           _camera = null;
+    private Camera _camera = null;
     Camera targetCamera
     {
         get
@@ -54,11 +52,11 @@ public class SimplePathTracer : MonoBehaviour
             return _camera;
         }
     }
-    private Matrix4x4        _prevViewMatrix = Matrix4x4.identity;
-    private Matrix4x4        _prevProjMatrix = Matrix4x4.identity;
-    private BackgroundMode   _prevBackgroundMode  = BackgroundMode.Skybox;
-    private Color            _prevBackgroundColor = Color.black;
-    private int              _accumeSamples = 0;
+    private Matrix4x4 _prevViewMatrix = Matrix4x4.identity;
+    private Matrix4x4 _prevProjMatrix = Matrix4x4.identity;
+    private BackgroundMode _prevBackgroundMode = BackgroundMode.Skybox;
+    private Color _prevBackgroundColor = Color.black;
+    private int _accumeSamples = 0;
     [SerializeField]
     private int dispatchSamples = 1;
     private int _dispatchSamples = 1;
@@ -66,10 +64,10 @@ public class SimplePathTracer : MonoBehaviour
     private TonemapMode tonemapMode = TonemapMode.None;
     private TonemapMode _prevTonemapMode = TonemapMode.None;
     [SerializeField, Range(0.001F, 0.5F)]
-    private float       exposure = 0.23F;
-    private Material _luminanceMaterial  = null;
+    private float exposure = 0.23F;
+    private Material _luminanceMaterial = null;
     private Material _luminanceHistogramMaterial = null;
-    private Material _TonemapMaterial    = null;
+    private Material _TonemapMaterial = null;
     private Material _copySkyboxMaterial = null;
     Material luminanceMaterial
     {
@@ -92,7 +90,7 @@ public class SimplePathTracer : MonoBehaviour
             }
             return _luminanceHistogramMaterial;
         }
-    }   
+    }
     Material tonemapMaterial
     {
         get
@@ -123,7 +121,7 @@ public class SimplePathTracer : MonoBehaviour
     private int _resIdxAccumeSamples = 0;
     private int _resIdxSkybox = 0;
     private int _resIdxDispatchSamples = 0;
-    private int _resIdxBackgroundMode  = 0;
+    private int _resIdxBackgroundMode = 0;
     private int _resIdxBackgroundColor = 0;
     private bool _dirtyAS = false;
     private bool supportRayTracing
@@ -135,7 +133,7 @@ public class SimplePathTracer : MonoBehaviour
     }
     private void OnEnable()
     {
-        if (!supportRayTracing){return;}
+        if (!supportRayTracing) { return; }
         _resIdxRenderTarget = Shader.PropertyToID("RenderTarget");
         _resIdxAccumeTarget = Shader.PropertyToID("AccumeTarget");
         _resIdxRandomBuffer = Shader.PropertyToID("RandomBuffer");
@@ -145,7 +143,7 @@ public class SimplePathTracer : MonoBehaviour
         _resIdxSkybox = Shader.PropertyToID("Skybox");
         _resIdxBackgroundMode = Shader.PropertyToID("BackgroundMode");
         _resIdxBackgroundColor = Shader.PropertyToID("BackgroundColor");
-        _prevBackgroundMode  = ConvertToBackgroundMode(targetCamera.clearFlags);
+        _prevBackgroundMode = ConvertToBackgroundMode(targetCamera.clearFlags);
         _prevBackgroundColor = targetCamera.backgroundColor;
         _prevTonemapMode = tonemapMode;
         _accelerationStructure = new RayTracingAccelerationStructure();
@@ -202,7 +200,7 @@ public class SimplePathTracer : MonoBehaviour
         else
         {
             UpdateResources(source.width, source.height);
-            RenderTexture skyCubeRT = RenderTexture.GetTemporary(new RenderTextureDescriptor(512, 512, RenderTextureFormat.ARGBFloat, 0, 0, RenderTextureReadWrite.Linear)
+            RenderTexture skyCubeRT = RenderTexture.GetTemporary(new RenderTextureDescriptor(512, 512, RenderTextureFormat.ARGBFloat)
             {
                 dimension = UnityEngine.Rendering.TextureDimension.Cube
             });
@@ -266,7 +264,7 @@ public class SimplePathTracer : MonoBehaviour
                 RenderTexture activeRT = RenderTexture.active;
                 RenderTexture.active = _accumeTexture;
                 GL.Clear(true, true, Color.black);
-                RenderTexture.active = activeRT; 
+                RenderTexture.active = activeRT;
                 _accumeSamples = 0;
             }
             return;
@@ -360,7 +358,7 @@ public class SimplePathTracer : MonoBehaviour
         if (_dirtyAS)
         {
             BuildAccelerationStructure();
-            _dirtyAS  = false;
+            _dirtyAS = false;
             return true;
         }
         return false;
@@ -419,7 +417,7 @@ public class SimplePathTracer : MonoBehaviour
             return false;
         }
         {
-            RenderTexture luminanceRT      = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            RenderTexture luminanceRT = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             Graphics.Blit(source, luminanceRT, luminanceMaterial);
             // TODO: GPUÇ≈ÇÃåvéZÇ…ïœçX
             RenderTexture smallRT = null;
@@ -428,15 +426,15 @@ public class SimplePathTracer : MonoBehaviour
                 RenderTexture[] luminanceMipRTs = new RenderTexture[requiredTexCount];
                 for (int i = 0; i < requiredTexCount; i++)
                 {
-                    luminanceMipRTs[i] = RenderTexture.GetTemporary(Mathf.Max(source.width >> (3*(i+1)),1), Mathf.Max(source.height >> (3 * (i + 1)),1), 0,RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                    luminanceMipRTs[i] = RenderTexture.GetTemporary(Mathf.Max(source.width >> (3 * (i + 1)), 1), Mathf.Max(source.height >> (3 * (i + 1)), 1), 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
                 }
                 Graphics.Blit(luminanceRT, luminanceMipRTs[0], luminanceHistogramMaterial);
-                for (int i = 0; i < requiredTexCount-1; i++)
+                for (int i = 0; i < requiredTexCount - 1; i++)
                 {
-                    Graphics.Blit(luminanceMipRTs[i], luminanceMipRTs[i+1], luminanceHistogramMaterial);
+                    Graphics.Blit(luminanceMipRTs[i], luminanceMipRTs[i + 1], luminanceHistogramMaterial);
                 }
                 smallRT = luminanceMipRTs[requiredTexCount - 1];
-                for (int i = 0; i < requiredTexCount-1; i++)
+                for (int i = 0; i < requiredTexCount - 1; i++)
                 {
                     RenderTexture.ReleaseTemporary(luminanceMipRTs[i]);
                 }
