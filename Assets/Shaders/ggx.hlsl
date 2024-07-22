@@ -50,6 +50,31 @@ float  D_GGX(float cos_m,float a) {
         return 0.0;
     }
 }
+float D_GGX_anisotropic(float3 w, float ax, float ay) {
+	float xn  = w.x / ax;
+	float yn  = w.y / ay;
+	float zn  = w.z;
+	float xn2 = xn * xn;
+	float yn2 = yn * yn;
+	float zn2 = zn * zn;
+    float v1 = (xn2 + yn2 + zn2);
+	return UNITY_INV_PI / (ax * ay * v1 * v1);
+}
+float Alpha_GGX_anisotropic(float3 w, float ax, float ay) {
+    float xn   = w.x;
+	float yn   = w.y;
+    float zn   = w.z;
+	float cos2 = zn * zn;
+    float sin2 = max(1.0 - cos2, 0.0);
+	if (sin2 == 0.0) { return 0.0; }
+	float ax2  = ax * ax;
+	float ay2  = ay * ay;
+	float xn2  = xn * xn;
+	float yn2  = yn * yn;
+	float v1   = xn2 * ax2 + yn2 * ay2;
+    float v2   = v1 / sin2;
+	return sqrt(v2);
+}
 // 
 // ŽÀ‘•(G): Masking Shadow Function
 // 
@@ -167,6 +192,7 @@ float4 SampleAndEval_PDF_GGX_D_NdotM(float2 rnd, float a) {
     float3 m = UniformInGGXNormalCosineHemiSphere(rnd, a);
     return float4(m.x, m.y, m.z, DensityInGGXNormalCosineHemiSphere(m.z,a));
 }
+
 float3 SampleAndEval_BRDF_GGX_Per_D_NdotM      (float3 wi, float2 rnd, float3 f0, float a, out float3 wo, out float pdf)
 {
     float4 wm_amd_pdf = SampleAndEval_PDF_GGX_D_NdotM(rnd, a);
@@ -214,5 +240,61 @@ float3 SampleAndEval_BRDF_GGX_NdotO_Per_D_NdotM(float3 wi, float2 rnd, float3 f0
     pdf = d_cos_m * 0.25 / cos_o_m;
     return g * f * cos_o_m / tmp2;
 }
-
+float  Eval_PDF_GGX_D_NdotM_anisotropic(float3 w, float ax, float ay) {
+    return DensityInAnisotropicGGXNormalCosineHemiSphere(w, ax, ay);
+}
+float3 Sample_PDF_GGX_D_NdotM_anisotropic(float2 rnd, float ax, float ay) {
+    return UniformInAnisotropicGGXNormalCosineHemiSphere(rnd, ax, ay);
+}
+float4 SampleAndEval_PDF_GGX_D_NdotM_anisotropic(float2 rnd, float ax, float ay) {
+    float3 m = UniformInAnisotropicGGXNormalCosineHemiSphere(rnd, ax, ay);
+    return float4(m.x, m.y, m.z, DensityInAnisotropicGGXNormalCosineHemiSphere(m, ax, ay));
+}
+float3 SampleAndEval_BRDF_GGX_Per_D_NdotM_anisotropic(float3 wi, float2 rnd, float3 f0, float ax, float ay, out float3 wo, out float pdf) {
+	float4 wm_amd_pdf = SampleAndEval_PDF_GGX_D_NdotM_anisotropic(rnd, ax, ay);
+	float3 wm = normalize(float3(wm_amd_pdf.x, wm_amd_pdf.y, wm_amd_pdf.z));
+	float d_cos_m = wm_amd_pdf.w;
+	wo = normalize(reflect(-wi, wm));
+	float cos_m_n = wm.z;
+	float cos_i_n = wi.z;
+	float cos_o_n = wo.z;
+	float cos_i_m = dot(wi, wm);
+	float cos_o_m = cos_i_m;
+	float step_i = (cos_i_n > 0.0) * (cos_i_m > 0.0);
+	float step_o = (cos_o_n > 0.0) * (cos_o_m > 0.0);
+	float alpha = Alpha_GGX_anisotropic(wm, ax, ay);
+	float g = step_i * step_o * G2_GGX(cos_i_n, cos_o_n, alpha);
+	float3 f = Fresnel_Schlick3(cos_i_m, f0);
+	// BRDF        = F * G * D   / 4 * (cos_i_n * cos_o_n)
+	// PDF         = D * cos_m_n / 4 * (cos_o_m)
+	// BRDF_PER_PDF= F * G * cos_o_m / (cos_i_n * cos_o_n * cos_m_n)
+	float tmp2 = (cos_i_n * cos_o_n * cos_m_n);
+	if (tmp2 == 0.0) { pdf = 0.0; return float3(0.0, 0.0, 0.0); }
+	pdf = d_cos_m * 0.25 / cos_o_m;
+	return g * f * cos_o_m / tmp2;
+}
+float3 SampleAndEval_BRDF_GGX_NdotO_Per_D_NdotM_anisotropic(float3 wi, float2 rnd, float3 f0, float ax, float ay, out float3 wo, out float pdf) {
+	float4 wm_amd_pdf = SampleAndEval_PDF_GGX_D_NdotM_anisotropic(rnd, ax, ay);
+	float3 wm = normalize(float3(wm_amd_pdf.x, wm_amd_pdf.y, wm_amd_pdf.z));
+	float d_cos_m = wm_amd_pdf.w;
+	wo = normalize(reflect(-wi, wm));
+	float cos_m_n = wm.z;
+	float cos_i_n = wi.z;
+	float cos_o_n = wo.z;
+	float cos_i_m = dot(wi, wm);
+	float cos_o_m = cos_i_m;
+	float step_i = (cos_i_n > 0.0) * (cos_i_m > 0.0);
+	float step_o = (cos_o_n > 0.0) * (cos_o_m > 0.0);
+	float alpha  = Alpha_GGX_anisotropic(wm, ax, ay);
+	float g = step_i * step_o * G2_GGX(cos_i_n, cos_o_n, alpha);
+	float3 f = Fresnel_Schlick3(cos_i_m, f0);
+	// BRDF        = F * G * D   / 4 * (cos_i_n * cos_o_n)
+	// PDF         = D * cos_m_n / 4 * (cos_o_m)
+	// BRDF_PER_PDF= F * G * cos_o_m / (cos_i_n * cos_o_n * cos_m_n)
+	// BRDF_Cos_PER_PDF= F * G * cos_o_m / (cos_i_n * cos_m_n)
+	float tmp2 = (cos_i_n * cos_m_n);
+	if (tmp2 == 0.0) { pdf = 0.0; return float3(0.0, 0.0, 0.0); }
+	pdf = d_cos_m * 0.25 / cos_o_m;
+	return g * f * cos_o_m / tmp2;
+}
 #endif

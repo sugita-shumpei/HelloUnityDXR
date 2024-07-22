@@ -1,4 +1,4 @@
-Shader "Unlit/SimplePathTracerGGX"
+Shader "Unlit/SimplePathTracerGGXMetal"
 {
     Properties {
 		_Color ("Color"             , Color) = (1,1,1,1)
@@ -92,26 +92,27 @@ Shader "Unlit/SimplePathTracerGGX"
                     UnityRayTracingFetchVertexAttribute3(indices.y,kVertexAttributeNormal),
                     UnityRayTracingFetchVertexAttribute3(indices.z,kVertexAttributeNormal), bary
                 ));
+                float3 normal  = vnormal;
                 float2 uv = triangleInterpolation2(
                     UnityRayTracingFetchVertexAttribute2(indices.x,kVertexAttributeTexCoord0),
                     UnityRayTracingFetchVertexAttribute2(indices.y,kVertexAttributeTexCoord0),
                     UnityRayTracingFetchVertexAttribute2(indices.z,kVertexAttributeTexCoord0), bary
                 );
-                if (dot(ray_direction, vnormal) > 0.0) {
-					fnormal = -vnormal;
+                if (dot(ray_direction, normal) > 0.0) {
+					normal = -normal;
 				}
                 
                 initSeed(payload.seed);
                 float2 rand2        = float2 (uintToNormalizedFloat (randPCG()) , uintToNormalizedFloat (randPCG()));
-                float3 wi           = onbWorldToLocal(-ray_direction,fnormal);
+                float3 wi           = onbWorldToLocal(-ray_direction,normal);
                 float3 wo; float pdf;
                 float3 weights      = SampleAndEval_BRDF_GGX_NdotO_Per_D_NdotM(wi,rand2,_Color,_Roughness*_Roughness,wo,pdf);
                 if (isnan(weights.x) || isnan(weights.y) || isnan(weights.z)) {
 					weights = float3(0,0,0);
 				}
                 payload.throughput *= weights;
-                payload.origin      = position + 0.01 * fnormal;
-                payload.direction   = onbLocalToWorld(wo,fnormal);
+                payload.origin      = position + 0.01 * normal;
+                payload.direction   = onbLocalToWorld(wo,normal);
                 payload.seed        = readSeed();
             }
 
