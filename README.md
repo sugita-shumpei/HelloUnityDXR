@@ -9,7 +9,7 @@
 
 ## 実行環境（動作確認済み,より弱い環境でも動く可能性大）
 
-- Unity 2023.2.20
+- Unity 2023.2.21 (Unity 2023.2.20はmainを参照)
 - Windows 11
 - NVIDIA Geforce RTX 4080 (NVIDIA RTX 20シリーズ以降ならおそらく動作)
 
